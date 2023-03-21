@@ -63,6 +63,50 @@ static NativeSymbol native_symbols[] = {
   EXPORT_WASM_API_WITH_SIG(enif_printf_L, "($I)I")
 };
 
+
+const char* type_str(enum wasm_valkind_enum type)
+{
+    switch (type) {
+    case WASM_I32: return "I32";
+    case WASM_I64: return "I64";
+    case WASM_F32: return "F32";
+    case WASM_F64: return "F64";
+    case WASM_ANYREF: return "ANYREF";
+    case WASM_FUNCREF: return "FUNCREF";
+    }
+    return "INVALID TYPE";
+}
+
+static
+void print_func(const char* fname,
+                wasm_function_inst_t func,
+                wasm_module_inst_t module_inst)
+{
+    uint32_t narg = wasm_func_get_param_count(func, module_inst);
+    uint32_t nret = wasm_func_get_result_count(func, module_inst);
+    wasm_valkind_t arg_types[narg];
+    wasm_valkind_t ret_types[nret];
+    uint32_t i;
+    const char* delim;
+
+    wasm_func_get_param_types(func, module_inst, arg_types);
+    printf("%s(", fname);
+    delim = "";
+    for (i=0; i < narg; i++) {
+        printf("%s%s", delim, type_str(arg_types[i]));
+        delim = ",";
+    }
+    printf(") -> ");
+    wasm_func_get_result_types(func, module_inst, ret_types);
+    delim = "";
+    for (i=0; i < nret; i++) {
+        printf("%s%s", delim, type_str(ret_types[i]));
+        delim = ",";
+    }
+    printf("\n");
+}
+
+
 int main()
 {
   char *buffer, error_buf[128];
@@ -160,6 +204,9 @@ int main()
       printf("%s\n", wasm_runtime_get_exception(module_inst));
     }
   }
+
+  print_func("add", add_func, module_inst);
+  print_func("addL", addL_func, module_inst);
 
   return 0;
 }
