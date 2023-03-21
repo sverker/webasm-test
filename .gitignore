@@ -1,0 +1,8 @@
+*.o
+*.beam
+*.wasm
+*.so
+*~
+
+/main
+
