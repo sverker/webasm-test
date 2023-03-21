@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -43,6 +44,18 @@ static char* read_wasm_binary_to_buffer(const char* wasm_file,
   return buf;
 }
 
+int enif_printf_I(wasm_exec_env_t exec_env, const char* fmt, int arg1)
+{
+
+  //fprintf(stderr, "enif_printf1 called fmt=%p\n", fmt);
+  return fprintf(stderr, fmt, arg1);
+}
+
+/* the native functions that will be exported to WASM app */
+static NativeSymbol native_symbols[] = {
+    EXPORT_WASM_API_WITH_SIG(enif_printf_I, "($i)i")
+};
+
 int main()
 {
   char *buffer, error_buf[128];
@@ -52,8 +65,35 @@ int main()
   wasm_exec_env_t exec_env;
   uint32_t size, stack_size = 8092, heap_size = 8092;
 
+
+  /* all the runtime memory allocations are retricted in the global_heap_buf array */
+  static char global_heap_buf[512 * 1024];
+  RuntimeInitArgs init_args;
+  memset(&init_args, 0, sizeof(RuntimeInitArgs));
+
+  fprintf(stderr, "global_heap_buf = %p\n", global_heap_buf);
+
+  /* configure the memory allocator for the runtime */
+  init_args.mem_alloc_type = Alloc_With_Pool;
+  init_args.mem_alloc_option.pool.heap_buf = global_heap_buf;
+  init_args.mem_alloc_option.pool.heap_size = sizeof(global_heap_buf);
+
+  /* configure the native functions being exported to WASM app */
+  init_args.native_module_name = "env";
+  init_args.n_native_symbols = sizeof(native_symbols) / sizeof(NativeSymbol);
+  init_args.native_symbols = native_symbols;
+
+  /* set maximum thread number if needed when multi-thread is enabled,
+     the default value is 4 */
+  init_args.max_thread_num = 4;
+
+  /* initialize runtime environment with user configurations*/
+  if (!wasm_runtime_full_init(&init_args)) {
+    return -1;
+  }
+
   /* initialize the wasm runtime by default configurations */
-  wasm_runtime_init();
+  //wasm_runtime_init();
 
   /* read WASM file into a memory buffer */
   buffer = read_wasm_binary_to_buffer("./add.wasm", &size);
