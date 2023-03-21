@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -51,9 +52,15 @@ int enif_printf_I(wasm_exec_env_t exec_env, const char* fmt, int arg1)
   return fprintf(stderr, fmt, arg1);
 }
 
+int64_t enif_printf_L(wasm_exec_env_t exec_env, const char* fmt, int64_t arg1)
+{
+  return (int64_t) fprintf(stderr, fmt, arg1);
+}
+
 /* the native functions that will be exported to WASM app */
 static NativeSymbol native_symbols[] = {
-    EXPORT_WASM_API_WITH_SIG(enif_printf_I, "($i)i")
+  EXPORT_WASM_API_WITH_SIG(enif_printf_I, "($i)i"),
+  EXPORT_WASM_API_WITH_SIG(enif_printf_L, "($I)I")
 };
 
 int main()
@@ -61,7 +68,8 @@ int main()
   char *buffer, error_buf[128];
   wasm_module_t module;
   wasm_module_inst_t module_inst;
-  wasm_function_inst_t func;
+  wasm_function_inst_t add_func;
+  wasm_function_inst_t addL_func;
   wasm_exec_env_t exec_env;
   uint32_t size, stack_size = 8092, heap_size = 8092;
 
@@ -111,7 +119,8 @@ int main()
 
   /* lookup a WASM function by its name
      The function signature can NULL here */
-  func = wasm_runtime_lookup_function(module_inst, "add", NULL);
+  add_func = wasm_runtime_lookup_function(module_inst, "add", NULL);
+  addL_func = wasm_runtime_lookup_function(module_inst, "addL", NULL);
 
   /* creat an execution environment to execute the WASM functions */
   exec_env = wasm_runtime_create_exec_env(module_inst, stack_size);
@@ -123,10 +132,28 @@ int main()
     argv[0] = 8;
     argv[1] = 13;
 
-    /* call the WASM function */
-    if (wasm_runtime_call_wasm(exec_env, func, 2, argv) ) {
+    if (wasm_runtime_call_wasm(exec_env, add_func, 2, argv) ) {
       /* the return value is stored in argv[0] */
       printf("add function return: %d\n", argv[0]);
+    }
+    else {
+      /* exception is thrown if call fails */
+      printf("%s\n", wasm_runtime_get_exception(module_inst));
+    }
+  }
+  {
+    uint32_t argv[4];
+    int64_t arg1 = 8;
+    int64_t arg2 = 13;
+
+    /* arguments are always transferred in 32-bit element */
+    memcpy(&argv[0], &arg1, sizeof(arg1));
+    memcpy(&argv[2], &arg2, sizeof(arg2));
+
+    if (wasm_runtime_call_wasm(exec_env, addL_func, 4, argv) ) {
+      int64_t ret;
+      memcpy(&ret, &argv[0], sizeof(ret));
+      printf("addL function return: %ld\n", ret);
     }
     else {
       /* exception is thrown if call fails */
