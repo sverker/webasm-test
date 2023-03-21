@@ -218,3 +218,21 @@ int tester_run()
 
   return 0;
 }
+
+int tester_call_func(const char* name, uint32_t n_args, wasm_val_t* args,
+                     wasm_val_t* result, const char** error)
+{
+    wasm_function_inst_t func;
+
+    func = wasm_runtime_lookup_function(module_inst, name, NULL);
+    if (!func)
+        return 0;
+
+    /* call the WASM function */
+    if (wasm_runtime_call_wasm_a(exec_env, func, 1, result, n_args, args))
+        return 1;
+
+    /* exception is thrown if call fails */
+    *error = wasm_runtime_get_exception(module_inst);
+    return 0;
+}

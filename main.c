@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <stdarg.h>
 
+#include <wasm_export.h>
+
 #include "tester.h"
 
 int main()
