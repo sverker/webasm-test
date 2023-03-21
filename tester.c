@@ -47,16 +47,16 @@ static char* read_wasm_binary_to_buffer(const char* wasm_file,
   return buf;
 }
 
-int enif_printf_I(wasm_exec_env_t exec_env, const char* fmt, int arg1)
-{
+int enif_fprintf(FILE* stream, const char* fmt, ...);
 
-  //fprintf(stderr, "enif_printf1 called fmt=%p\n", fmt);
-  return fprintf(stderr, fmt, arg1);
+static int enif_printf_I(wasm_exec_env_t exec_env, const char* fmt, int arg1)
+{
+  return enif_fprintf(stderr, fmt, arg1);
 }
 
-int64_t enif_printf_L(wasm_exec_env_t exec_env, const char* fmt, int64_t arg1)
+static int64_t enif_printf_L(wasm_exec_env_t exec_env, const char* fmt, int64_t arg1)
 {
-  return (int64_t) fprintf(stderr, fmt, arg1);
+  return (int64_t) enif_fprintf(stderr, fmt, arg1);
 }
 
 /* the native functions that will be exported to WASM app */
@@ -92,31 +92,30 @@ void print_func(const char* fname,
     const char* delim;
 
     wasm_func_get_param_types(func, module_inst, arg_types);
-    printf("%s(", fname);
+    enif_fprintf(stdout,"%s(", fname);
     delim = "";
     for (i=0; i < narg; i++) {
-        printf("%s%s", delim, type_str(arg_types[i]));
+        enif_fprintf(stdout,"%s%s", delim, type_str(arg_types[i]));
         delim = ",";
     }
-    printf(") -> ");
+    enif_fprintf(stdout,") -> ");
     wasm_func_get_result_types(func, module_inst, ret_types);
     delim = "";
     for (i=0; i < nret; i++) {
-        printf("%s%s", delim, type_str(ret_types[i]));
+        enif_fprintf(stdout,"%s%s", delim, type_str(ret_types[i]));
         delim = ",";
     }
-    printf("\n");
+    enif_fprintf(stdout,"\n");
 }
 
+static wasm_module_t module;
+static wasm_module_inst_t module_inst;
+static wasm_exec_env_t exec_env;
+static char error_buf[128];
 
-int tester()
+int tester_init()
 {
-  char *buffer, error_buf[128];
-  wasm_module_t module;
-  wasm_module_inst_t module_inst;
-  wasm_function_inst_t add_func;
-  wasm_function_inst_t addL_func;
-  wasm_exec_env_t exec_env;
+  char *buffer;
   uint32_t size, stack_size = 8092, heap_size = 8092;
 
 
@@ -162,14 +161,21 @@ int tester()
   module_inst = wasm_runtime_instantiate(module, stack_size, heap_size,
                                          error_buf, sizeof(error_buf));
 
+  /* creat an execution environment to execute the WASM functions */
+  exec_env = wasm_runtime_create_exec_env(module_inst, stack_size);
+  return 0;
+}
+
+int tester_run()
+{
+    wasm_function_inst_t add_func;
+    wasm_function_inst_t addL_func;
 
   /* lookup a WASM function by its name
      The function signature can NULL here */
   add_func = wasm_runtime_lookup_function(module_inst, "add", NULL);
   addL_func = wasm_runtime_lookup_function(module_inst, "addL", NULL);
 
-  /* creat an execution environment to execute the WASM functions */
-  exec_env = wasm_runtime_create_exec_env(module_inst, stack_size);
 
   {
     uint32_t argv[2];
@@ -180,7 +186,7 @@ int tester()
 
     if (wasm_runtime_call_wasm(exec_env, add_func, 2, argv) ) {
       /* the return value is stored in argv[0] */
-      printf("add function return: %d\n", argv[0]);
+      printf("add function return: %d\r\n", argv[0]);
     }
     else {
       /* exception is thrown if call fails */
@@ -199,7 +205,7 @@ int tester()
     if (wasm_runtime_call_wasm(exec_env, addL_func, 4, argv) ) {
       int64_t ret;
       memcpy(&ret, &argv[0], sizeof(ret));
-      printf("addL function return: %ld\n", ret);
+      printf("addL function return: %ld\r\n", ret);
     }
     else {
       /* exception is thrown if call fails */
