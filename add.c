@@ -31,3 +31,8 @@ double addF (double first, double second)
   enif_printf_F("addF: second = %f\n", second);
   return first + second;
 }
+
+char* buffy(char* buf)
+{
+  return buf;
+}

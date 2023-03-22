@@ -3,9 +3,11 @@
 
 #include "tester.h"
 
+static ERL_NIF_TERM atom_ok;
 
 static int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
 {
+    atom_ok = enif_make_atom(env, "ok");
     return tester_init();
 }
 
@@ -80,10 +82,27 @@ static ERL_NIF_TERM apply_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     return enif_make_badarg(env);
 }
 
+static ERL_NIF_TERM print_func_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    char func_name[20];
+    wasm_function_inst_t func;
+
+    if (!enif_get_atom(env, argv[0], func_name, sizeof(func_name), ERL_NIF_LATIN1))
+        return enif_make_badarg(env);
+
+    func = wasm_runtime_lookup_function(module_inst, func_name, NULL);
+    if (!func)
+        return raise_exception(env, "Function undefined");
+
+    print_func(func_name, func, module_inst);
+    return atom_ok;
+}
+
 static ErlNifFunc nif_funcs[] =
 {
     {"hello", 0, hello_nif},
-    {"apply", 2, apply_nif}
+    {"apply", 2, apply_nif},
+    {"print_func", 1, print_func_nif}
 };
 
 ERL_NIF_INIT(tester_nif,nif_funcs,load,NULL,NULL,NULL)

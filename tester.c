@@ -85,7 +85,6 @@ const char* type_str(enum wasm_valkind_enum type)
     return "INVALID TYPE";
 }
 
-static
 void print_func(const char* fname,
                 wasm_function_inst_t func,
                 wasm_module_inst_t module_inst)
