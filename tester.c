@@ -109,7 +109,7 @@ void print_func(const char* fname,
 }
 
 static wasm_module_t module;
-static wasm_module_inst_t module_inst;
+wasm_module_inst_t module_inst;
 static wasm_exec_env_t exec_env;
 static char error_buf[128];
 
@@ -219,15 +219,9 @@ int tester_run()
   return 0;
 }
 
-int tester_call_func(const char* name, uint32_t n_args, wasm_val_t* args,
+int tester_call_func(wasm_function_inst_t func, uint32_t n_args, wasm_val_t* args,
                      wasm_val_t* result, const char** error)
 {
-    wasm_function_inst_t func;
-
-    func = wasm_runtime_lookup_function(module_inst, name, NULL);
-    if (!func)
-        return 0;
-
     /* call the WASM function */
     if (wasm_runtime_call_wasm_a(exec_env, func, 1, result, n_args, args))
         return 1;
