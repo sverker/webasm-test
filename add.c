@@ -32,7 +32,10 @@ double addF (double first, double second)
   return first + second;
 }
 
-char* buffy(char* buf)
+char* buffy(char* buf, int32_t size)
 {
+  int i;
+  for (i=0; i < size; i++)
+    buf[i] = ~buf[i];
   return buf;
 }

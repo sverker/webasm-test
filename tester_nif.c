@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include <erl_nif.h>
 #include <wasm_export.h>
 
@@ -98,11 +100,57 @@ static ERL_NIF_TERM print_func_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
     return atom_ok;
 }
 
+static ERL_NIF_TERM arg_binary_alloc_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    ErlNifBinary bin;
+    uint32_t app_offset;
+
+    if (!enif_inspect_binary(env, argv[0], &bin))
+        return enif_make_badarg(env);
+
+    app_offset = wasm_runtime_module_dup_data(module_inst, bin.data, bin.size);
+    return enif_make_uint(env, app_offset);
+}
+
+static ERL_NIF_TERM arg_binary_free_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    uint32_t app_offset;
+
+    if (!enif_get_uint(env, argv[0], &app_offset)
+        || !wasm_runtime_validate_app_addr(module_inst, app_offset, 1))
+        return enif_make_badarg(env);
+
+    wasm_runtime_module_free(module_inst, app_offset);
+    return atom_ok;
+}
+
+static ERL_NIF_TERM ret_binary_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    uint32_t app_offset, size;
+    ERL_NIF_TERM bin_term;
+    void *src, *dst;
+
+    if (!enif_get_uint(env, argv[0], &app_offset)
+        || !enif_get_uint(env, argv[1], &size)
+        || !wasm_runtime_validate_app_addr(module_inst, app_offset, size))
+        return enif_make_badarg(env);
+
+    src = wasm_runtime_addr_app_to_native(module_inst, app_offset);
+    dst = enif_make_new_binary(env, size, &bin_term);
+    memcpy(dst, src, size);
+    return bin_term;
+}
+
+
+
 static ErlNifFunc nif_funcs[] =
 {
     {"hello", 0, hello_nif},
     {"apply", 2, apply_nif},
-    {"print_func", 1, print_func_nif}
+    {"print_func", 1, print_func_nif},
+    {"arg_binary_alloc", 1, arg_binary_alloc_nif},
+    {"arg_binary_free", 1, arg_binary_free_nif},
+    {"ret_binary", 2, ret_binary_nif}
 };
 
 ERL_NIF_INIT(tester_nif,nif_funcs,load,NULL,NULL,NULL)
