@@ -6,10 +6,12 @@
 #include "tester.h"
 
 static ERL_NIF_TERM atom_ok;
+static ERL_NIF_TERM atom_void;
 
 static int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
 {
-    atom_ok = enif_make_atom(env, "ok");
+    atom_ok   = enif_make_atom(env, "ok");
+    atom_void = enif_make_atom(env, "void");
     return tester_init();
 }
 
@@ -27,7 +29,7 @@ static ERL_NIF_TERM raise_exception(ErlNifEnv* env, const char* str)
 static ERL_NIF_TERM apply_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
     char func_name[20];
-    uint32_t n_args;
+    uint32_t n_args, n_ret;
     enum { N_ARGS_MAX = 10 };
     wasm_val_t args[N_ARGS_MAX];
     wasm_val_t result;
@@ -48,7 +50,8 @@ static ERL_NIF_TERM apply_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     if (n_args > N_ARGS_MAX)
         return raise_exception(env, "Function arity notsup");
 
-    if (wasm_func_get_result_count(func, module_inst) != 1)
+    n_ret = wasm_func_get_result_count(func, module_inst);
+    if (n_ret > 1)
         return raise_exception(env, "Function multiple return notsup");
 
     wasm_func_get_param_types(func, module_inst, arg_types);
@@ -73,9 +76,12 @@ static ERL_NIF_TERM apply_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     if (i != n_args)
         return enif_make_badarg(env);
 
-    if (!tester_call_func(func, n_args, args, &result, &error)) {
+    if (!tester_call_func(func, n_args, args, n_ret, &result, &error)) {
         return raise_exception(env, error);
     }
+    if (n_ret == 0)
+        return atom_void;
+
     switch (result.kind) {
     case WASM_I32: return enif_make_int(env, result.of.i32);
     case WASM_I64: return enif_make_int64(env, result.of.i64);

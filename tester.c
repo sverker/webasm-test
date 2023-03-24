@@ -224,11 +224,13 @@ int tester_run()
   return 0;
 }
 
-int tester_call_func(wasm_function_inst_t func, uint32_t n_args, wasm_val_t* args,
-                     wasm_val_t* result, const char** error)
+int tester_call_func(wasm_function_inst_t func,
+                     uint32_t n_args, wasm_val_t* args,
+                     uint32_t n_ret, wasm_val_t* result,
+                     const char** error)
 {
     /* call the WASM function */
-    if (wasm_runtime_call_wasm_a(exec_env, func, 1, result, n_args, args))
+    if (wasm_runtime_call_wasm_a(exec_env, func, n_ret, result, n_args, args))
         return 1;
 
     /* exception is thrown if call fails */
