@@ -1,4 +1,6 @@
+extern wasm_module_t module;
 extern wasm_module_inst_t module_inst;
+extern wasm_exec_env_t exec_env;
 
 int tester_init();
 int tester_run();

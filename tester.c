@@ -113,9 +113,9 @@ void print_func(const char* fname,
     enif_fprintf(stdout,"\n");
 }
 
-static wasm_module_t module;
+wasm_module_t module;
 wasm_module_inst_t module_inst;
-static wasm_exec_env_t exec_env;
+wasm_exec_env_t exec_env;
 static char error_buf[128];
 
 int tester_init()

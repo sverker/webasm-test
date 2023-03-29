@@ -147,6 +147,29 @@ static ERL_NIF_TERM ret_binary_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
     return bin_term;
 }
 
+static ERL_NIF_TERM new_module_inst_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    const uint32_t stack_size = 8092, heap_size = 8092;
+    char error_buf[100];
+    wasm_module_inst_t mi =
+        wasm_runtime_instantiate(module, stack_size, heap_size,
+                                 error_buf, sizeof(error_buf));
+    if (!mi)
+        raise_exception(env, error_buf);
+    module_inst = mi;
+    return atom_ok;
+}
+
+static ERL_NIF_TERM new_exec_env_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    const uint32_t stack_size = 8092;
+    char error_buf[100];
+    wasm_exec_env_t ee = wasm_runtime_create_exec_env(module_inst, stack_size);
+    if (!ee)
+        raise_exception(env, error_buf);
+    exec_env = ee;
+    return atom_ok;
+}
 
 
 static ErlNifFunc nif_funcs[] =
@@ -156,7 +179,9 @@ static ErlNifFunc nif_funcs[] =
     {"print_func", 1, print_func_nif},
     {"arg_binary_alloc", 1, arg_binary_alloc_nif},
     {"arg_binary_free", 1, arg_binary_free_nif},
-    {"ret_binary", 2, ret_binary_nif}
+    {"ret_binary", 2, ret_binary_nif},
+    {"new_module_inst", 0, new_module_inst_nif},
+    {"new_exec_env", 0, new_exec_env_nif}
 };
 
 ERL_NIF_INIT(tester_nif,nif_funcs,load,NULL,NULL,NULL)
