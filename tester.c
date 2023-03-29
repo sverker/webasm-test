@@ -115,7 +115,7 @@ void print_func(const char* fname,
 
 wasm_module_t module;
 wasm_module_inst_t module_inst;
-wasm_exec_env_t exec_env;
+wasm_exec_env_t the_exec_env;
 static char error_buf[128];
 
 int tester_init()
@@ -167,7 +167,7 @@ int tester_init()
                                          error_buf, sizeof(error_buf));
 
   /* creat an execution environment to execute the WASM functions */
-  exec_env = wasm_runtime_create_exec_env(module_inst, stack_size);
+  the_exec_env = wasm_runtime_create_exec_env(module_inst, stack_size);
   return 0;
 }
 
@@ -189,7 +189,7 @@ int tester_run()
     argv[0] = 8;
     argv[1] = 13;
 
-    if (wasm_runtime_call_wasm(exec_env, add_func, 2, argv) ) {
+    if (wasm_runtime_call_wasm(the_exec_env, add_func, 2, argv) ) {
       /* the return value is stored in argv[0] */
       printf("add function return: %d\r\n", argv[0]);
     }
@@ -207,7 +207,7 @@ int tester_run()
     memcpy(&argv[0], &arg1, sizeof(arg1));
     memcpy(&argv[2], &arg2, sizeof(arg2));
 
-    if (wasm_runtime_call_wasm(exec_env, addL_func, 4, argv) ) {
+    if (wasm_runtime_call_wasm(the_exec_env, addL_func, 4, argv) ) {
       int64_t ret;
       memcpy(&ret, &argv[0], sizeof(ret));
       printf("addL function return: %ld\r\n", ret);
@@ -224,7 +224,8 @@ int tester_run()
   return 0;
 }
 
-int tester_call_func(wasm_function_inst_t func,
+int tester_call_func(wasm_exec_env_t exec_env,
+                     wasm_function_inst_t func,
                      uint32_t n_args, wasm_val_t* args,
                      uint32_t n_ret, wasm_val_t* result,
                      const char** error)

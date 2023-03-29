@@ -76,7 +76,7 @@ static ERL_NIF_TERM apply_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     if (i != n_args)
         return enif_make_badarg(env);
 
-    if (!tester_call_func(func, n_args, args, n_ret, &result, &error)) {
+    if (!tester_call_func(the_exec_env, func, n_args, args, n_ret, &result, &error)) {
         return raise_exception(env, error);
     }
     if (n_ret == 0)
@@ -167,7 +167,7 @@ static ERL_NIF_TERM new_exec_env_nif(ErlNifEnv* env, int argc, const ERL_NIF_TER
     wasm_exec_env_t ee = wasm_runtime_create_exec_env(module_inst, stack_size);
     if (!ee)
         raise_exception(env, error_buf);
-    exec_env = ee;
+    the_exec_env = ee;
     return atom_ok;
 }
 
