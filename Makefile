@@ -1,6 +1,6 @@
 all: main tester_nif.so add.wasm tester_nif.beam
 
-WASM_LINK := -L/home/uabseri/src/wasm-micro-runtime/product-mini/platforms/linux/build -Wl,-rpath=/home/uabseri/src/wasm-micro-runtime/product-mini/platforms/linux/build -liwasm
+WASM_LINK := -L/home/uabseri/src/wasm-micro-runtime/product-mini/platforms/linux/build-thr-mngr -Wl,-rpath=/home/uabseri/src/wasm-micro-runtime/product-mini/platforms/linux/build-thr-mngr -liwasm
 WASM_INCLUDE := -I/home/uabseri/src/wasm-micro-runtime/core/iwasm/include
 CFLAGS := -g -O0
 ERL_ROOT := /home/uabseri/program/otp-24.3.4.1

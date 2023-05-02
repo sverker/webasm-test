@@ -114,7 +114,7 @@ void print_func(const char* fname,
 }
 
 wasm_module_t module;
-wasm_module_inst_t module_inst;
+wasm_module_inst_t the_module_inst;
 wasm_exec_env_t the_exec_env;
 static char error_buf[128];
 
@@ -163,11 +163,11 @@ int tester_init()
   module = wasm_runtime_load(buffer, size, error_buf, sizeof(error_buf));
 
   /* create an instance of the WASM module (WASM linear memory is ready) */
-  module_inst = wasm_runtime_instantiate(module, stack_size, heap_size,
-                                         error_buf, sizeof(error_buf));
+  the_module_inst = wasm_runtime_instantiate(module, stack_size, heap_size,
+                                             error_buf, sizeof(error_buf));
 
   /* creat an execution environment to execute the WASM functions */
-  the_exec_env = wasm_runtime_create_exec_env(module_inst, stack_size);
+  the_exec_env = wasm_runtime_create_exec_env(the_module_inst, stack_size);
   return 0;
 }
 
@@ -178,8 +178,8 @@ int tester_run()
 
   /* lookup a WASM function by its name
      The function signature can NULL here */
-  add_func = wasm_runtime_lookup_function(module_inst, "add", NULL);
-  addL_func = wasm_runtime_lookup_function(module_inst, "addL", NULL);
+  add_func = wasm_runtime_lookup_function(the_module_inst, "add", NULL);
+  addL_func = wasm_runtime_lookup_function(the_module_inst, "addL", NULL);
 
 
   {
@@ -195,7 +195,7 @@ int tester_run()
     }
     else {
       /* exception is thrown if call fails */
-      printf("%s\n", wasm_runtime_get_exception(module_inst));
+      printf("%s\n", wasm_runtime_get_exception(the_module_inst));
     }
   }
   {
@@ -214,12 +214,12 @@ int tester_run()
     }
     else {
       /* exception is thrown if call fails */
-      printf("%s\n", wasm_runtime_get_exception(module_inst));
+      printf("%s\n", wasm_runtime_get_exception(the_module_inst));
     }
   }
 
-  print_func("add", add_func, module_inst);
-  print_func("addL", addL_func, module_inst);
+  print_func("add", add_func, the_module_inst);
+  print_func("addL", addL_func, the_module_inst);
 
   return 0;
 }
@@ -235,6 +235,6 @@ int tester_call_func(wasm_exec_env_t exec_env,
         return 1;
 
     /* exception is thrown if call fails */
-    *error = wasm_runtime_get_exception(module_inst);
+    *error = wasm_runtime_get_exception(wasm_runtime_get_module_inst(exec_env));
     return 0;
 }
