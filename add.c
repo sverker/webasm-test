@@ -53,3 +53,8 @@ char* buffy(char* buf, int32_t size)
     buf[i] = ~buf[i];
   return buf;
 }
+
+void segv(void)
+{
+  *(int*)17 = 42;
+}
