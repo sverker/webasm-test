@@ -1,10 +1,14 @@
 -module(tester_nif).
 
 -export([hello/0, apply/2, print_func/1, arg_binary_alloc/1, arg_binary_free/1,
-	 ret_binary/2, new_module_inst/0, new_exec_env/0, malloc/1]).
+	 ret_binary/2, new_module_inst/0, new_exec_env/0,
+	 new_instance/0, call/3,
+	 malloc/1]).
 
 -nifs([hello/0, apply/2, print_func/1, arg_binary_alloc/1, arg_binary_free/1,
-       ret_binary/2, new_module_inst/0, new_exec_env/0, malloc/1]).
+       ret_binary/2, new_module_inst/0, new_exec_env/0,
+       new_instance/0, call/3,
+       malloc/1]).
 
 -on_load(init/0).
 
@@ -33,6 +37,12 @@ new_module_inst() ->
     erlang:nif_error("NIF library not loaded").
 
 new_exec_env() ->
+    erlang:nif_error("NIF library not loaded").
+
+new_instance() ->
+    erlang:nif_error("NIF library not loaded").
+
+call(_,_,_) ->
     erlang:nif_error("NIF library not loaded").
 
 malloc(_) ->

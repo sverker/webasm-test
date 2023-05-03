@@ -13,10 +13,33 @@ static ErlNifTSDKey the_exec_env_tsd_key;
 
 static const uint32_t stack_size = 8092, heap_size = 8092;
 
+ErlNifResourceType* the_module_exec_rt;
+
+struct module_exec_resrc
+{
+    wasm_module_inst_t module_inst;
+    wasm_exec_env_t exec_env;
+    ErlNifPid proc;
+};
+
+static void module_exec_destructor(ErlNifEnv* caller_env, void* obj)
+{
+    struct module_exec_resrc* resrc = (struct module_exec_resrc*) obj;
+
+    wasm_runtime_destroy_exec_env(resrc->exec_env);
+    wasm_runtime_deinstantiate(resrc->module_inst);
+}
+
 static int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
 {
     atom_ok   = enif_make_atom(env, "ok");
     atom_void = enif_make_atom(env, "void");
+
+    the_module_exec_rt = enif_open_resource_type(env, NULL, "module_exec",
+                                                 module_exec_destructor,
+                                                 ERL_NIF_RT_CREATE, NULL);
+    if (!the_module_exec_rt)
+        return __LINE__;
 
     if (enif_tsd_key_create("tester_nif_exec_env", &the_exec_env_tsd_key))
         return __LINE__;
@@ -51,7 +74,11 @@ static wasm_exec_env_t get_exec_env(void)
     return ee;
 }
 
-static ERL_NIF_TERM apply_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+ERL_NIF_TERM call(ErlNifEnv* env,
+                  wasm_module_inst_t module_inst,
+                  wasm_exec_env_t exec_env,
+                  ERL_NIF_TERM func_atom,
+                  ERL_NIF_TERM arg_list)
 {
     char func_name[20];
     uint32_t n_args, n_ret;
@@ -63,14 +90,9 @@ static ERL_NIF_TERM apply_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     ERL_NIF_TERM head, tail;
     const char* error;
     uint32_t i;
-    wasm_exec_env_t exec_env;
-    wasm_module_inst_t module_inst;
 
-    if (!enif_get_atom(env, argv[0], func_name, sizeof(func_name), ERL_NIF_LATIN1))
+    if (!enif_get_atom(env, func_atom, func_name, sizeof(func_name), ERL_NIF_LATIN1))
         return enif_make_badarg(env);
-
-    exec_env = get_exec_env();
-    module_inst = wasm_runtime_get_module_inst(exec_env);
 
     func = wasm_runtime_lookup_function(module_inst, func_name, NULL);
     if (!func)
@@ -87,7 +109,7 @@ static ERL_NIF_TERM apply_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     wasm_func_get_param_types(func, module_inst, arg_types);
 
     i = 0;
-    for (head = argv[1]; !enif_is_empty_list(env, head); head = tail, i++) {
+    for (head = arg_list; !enif_is_empty_list(env, head); head = tail, i++) {
         int ok;
         if (i >= n_args || !enif_get_list_cell(env, head, &head, &tail))
             return enif_make_badarg(env);
@@ -106,8 +128,6 @@ static ERL_NIF_TERM apply_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     if (i != n_args)
         return enif_make_badarg(env);
 
-
-
     if (!tester_call_func(exec_env, func, n_args, args, n_ret, &result,
                           &error)) {
         return raise_exception(env, error);
@@ -122,6 +142,31 @@ static ERL_NIF_TERM apply_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     }
     return enif_make_badarg(env);
 }
+
+static ERL_NIF_TERM apply_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    wasm_exec_env_t exec_env = get_exec_env();
+    wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
+
+    return call(env, module_inst, exec_env, argv[0], argv[1]);
+}
+
+static ERL_NIF_TERM call_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    struct module_exec_resrc* resrc;
+    ErlNifPid self;
+
+    if (!enif_get_resource(env, argv[0], the_module_exec_rt, (void**)&resrc))
+        return enif_make_badarg(env);
+
+    enif_self(env, &self);
+    if (enif_compare_pids(&self, &resrc->proc) != 0)
+        return raise_exception(env, "called by wrong process");
+
+    return call(env, resrc->module_inst, resrc->exec_env, argv[1], argv[2]);
+}
+
+
 
 static ERL_NIF_TERM print_func_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
@@ -201,6 +246,37 @@ static ERL_NIF_TERM new_exec_env_nif(ErlNifEnv* env, int argc, const ERL_NIF_TER
     return atom_ok;
 }
 
+static ERL_NIF_TERM new_instance_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    char error_buf[100];
+    struct module_exec_resrc* resrc;
+    ERL_NIF_TERM ret;
+    wasm_exec_env_t ee;
+    wasm_module_inst_t mi =
+        wasm_runtime_instantiate(the_module, stack_size, heap_size,
+                                 error_buf, sizeof(error_buf));
+    if (!mi)
+        raise_exception(env, error_buf);
+
+    ee = wasm_runtime_create_exec_env(mi, stack_size);
+    if (!ee) {
+        wasm_runtime_deinstantiate(mi);
+        raise_exception(env, "wasm_runtime_create_exec_env FAILED");
+    }
+
+    resrc = enif_alloc_resource(the_module_exec_rt,
+                                sizeof(struct module_exec_resrc));
+    assert(resrc);
+    resrc->module_inst = mi;
+    resrc->exec_env = ee;
+    enif_self(env, &resrc->proc);
+
+    ret = enif_make_resource(env, resrc);
+    enif_release_resource(resrc);
+    return ret;
+}
+
+
 static ERL_NIF_TERM malloc_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
     unsigned int size;
@@ -221,6 +297,8 @@ static ErlNifFunc nif_funcs[] =
     {"ret_binary", 2, ret_binary_nif},
     {"new_module_inst", 0, new_module_inst_nif},
     {"new_exec_env", 0, new_exec_env_nif},
+    {"new_instance", 0, new_instance_nif},
+    {"call", 3, call_nif},
     {"malloc", 1, malloc_nif}
 };
 
