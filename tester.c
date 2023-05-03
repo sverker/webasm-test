@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <assert.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -230,9 +231,15 @@ int tester_call_func(wasm_exec_env_t exec_env,
                      uint32_t n_ret, wasm_val_t* result,
                      const char** error)
 {
+    int ret;
+    ret = wasm_runtime_init_thread_env();
+    assert(ret); (void)ret;
+
     /* call the WASM function */
     if (wasm_runtime_call_wasm_a(exec_env, func, n_ret, result, n_args, args))
         return 1;
+
+    wasm_runtime_destroy_thread_env();
 
     /* exception is thrown if call fails */
     *error = wasm_runtime_get_exception(wasm_runtime_get_module_inst(exec_env));
