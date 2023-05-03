@@ -63,11 +63,19 @@ static int enif_printf_F(wasm_exec_env_t exec_env, const char* fmt, double arg1)
   return enif_fprintf(stderr, fmt, arg1);
 }
 
+static int32_t wasm_enif_get_int32(wasm_exec_env_t exec_env, uintptr_t env,
+                                   uintptr_t term, int32_t* ip)
+{
+    return enif_get_int((ErlNifEnv*)env, (ERL_NIF_TERM)term, ip);
+}
+
 /* the native functions that will be exported to WASM app */
 static NativeSymbol native_symbols[] = {
   EXPORT_WASM_API_WITH_SIG(enif_printf_I, "($i)i"),
   EXPORT_WASM_API_WITH_SIG(enif_printf_L, "($I)I"),
-  EXPORT_WASM_API_WITH_SIG(enif_printf_F, "($F)i")
+  EXPORT_WASM_API_WITH_SIG(enif_printf_F, "($F)i"),
+
+    EXPORT_WASM_API_WITH_SIG(wasm_enif_get_int32, "(rr*)i")
 };
 
 
