@@ -201,6 +201,15 @@ static ERL_NIF_TERM new_exec_env_nif(ErlNifEnv* env, int argc, const ERL_NIF_TER
     return atom_ok;
 }
 
+static ERL_NIF_TERM malloc_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    unsigned int size;
+    if (!enif_get_uint(env, argv[0], &size))
+        return enif_make_badarg(env);
+
+    return enif_make_uint64(env, (uint64_t)malloc(size));
+}
+
 
 static ErlNifFunc nif_funcs[] =
 {
@@ -211,7 +220,8 @@ static ErlNifFunc nif_funcs[] =
     {"arg_binary_free", 1, arg_binary_free_nif},
     {"ret_binary", 2, ret_binary_nif},
     {"new_module_inst", 0, new_module_inst_nif},
-    {"new_exec_env", 0, new_exec_env_nif}
+    {"new_exec_env", 0, new_exec_env_nif},
+    {"malloc", 1, malloc_nif}
 };
 
 ERL_NIF_INIT(tester_nif,nif_funcs,load,NULL,NULL,unload)

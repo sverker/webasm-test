@@ -46,6 +46,18 @@ double addF (double first, double second)
   return first + second;
 }
 
+int32_t dirty_read(int64_t native_address)
+{
+  int32_t *ptr = (int32_t*)native_address;
+  int32_t value;
+
+  enif_printf_L("dirty_read: native_address=%lx\n", native_address);
+  value = *ptr;
+  enif_printf_L("dirty_read: value=%x\n", value);
+  return value;
+}
+
+
 char* buffy(char* buf, int32_t size)
 {
   int i;
