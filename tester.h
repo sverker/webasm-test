@@ -1,4 +1,4 @@
-extern wasm_module_t module;
+extern wasm_module_t the_module;
 extern wasm_module_inst_t the_module_inst;
 extern wasm_exec_env_t the_exec_env;
 

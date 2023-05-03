@@ -184,7 +184,7 @@ static ERL_NIF_TERM new_module_inst_nif(ErlNifEnv* env, int argc, const ERL_NIF_
 {
     char error_buf[100];
     wasm_module_inst_t mi =
-        wasm_runtime_instantiate(module, stack_size, heap_size,
+        wasm_runtime_instantiate(the_module, stack_size, heap_size,
                                  error_buf, sizeof(error_buf));
     if (!mi)
         raise_exception(env, error_buf);

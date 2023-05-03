@@ -114,7 +114,7 @@ void print_func(const char* fname,
     enif_fprintf(stdout,"\n");
 }
 
-wasm_module_t module;
+wasm_module_t the_module;
 wasm_module_inst_t the_module_inst;
 wasm_exec_env_t the_exec_env;
 static char error_buf[128];
@@ -161,10 +161,10 @@ int tester_init()
   //wasm_runtime_register_natives(...);
 
   /* parse the WASM file from buffer and create a WASM module */
-  module = wasm_runtime_load(buffer, size, error_buf, sizeof(error_buf));
+  the_module = wasm_runtime_load(buffer, size, error_buf, sizeof(error_buf));
 
   /* create an instance of the WASM module (WASM linear memory is ready) */
-  the_module_inst = wasm_runtime_instantiate(module, stack_size, heap_size,
+  the_module_inst = wasm_runtime_instantiate(the_module, stack_size, heap_size,
                                              error_buf, sizeof(error_buf));
 
   /* creat an execution environment to execute the WASM functions */
