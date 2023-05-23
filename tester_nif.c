@@ -84,15 +84,10 @@ static int32_t enif_wasm_get_int32(wasm_exec_env_t exec_env,
     int32_t* int_ptr;
     struct module_exec_resrc* resrc = wasm_runtime_get_custom_data(mi);
 
-    if (env_offs != CALL_ENV_OFFS) {
-        // raise exception?
-        return 0;
-    }
+    if (env_offs != CALL_ENV_OFFS
+        || !wasm_runtime_validate_app_addr(mi, int_offs, sizeof(int32_t)))
+        return 0; // raise wasm exception?
 
-    if (!wasm_runtime_validate_app_addr(mi, int_offs, sizeof(int32_t))) {
-        // raise exception?
-        return 0;
-    }
     int_ptr = wasm_runtime_addr_app_to_native(mi, int_offs);
 
     return enif_get_int(resrc->call_env, (ERL_NIF_TERM)term, int_ptr);
@@ -105,7 +100,22 @@ static uintptr_t enif_wasm_make_int32(wasm_exec_env_t exec_env,
     wasm_module_inst_t mi = wasm_runtime_get_module_inst(exec_env);
     struct module_exec_resrc* resrc = wasm_runtime_get_custom_data(mi);
 
+    if (env_offs != CALL_ENV_OFFS)
+        return 0; // raise wasm exception?
+
     return enif_make_int(resrc->call_env, value);
+}
+
+static uintptr_t enif_wasm_make_badarg(wasm_exec_env_t exec_env,
+                                       uint32_t env_offs)
+{
+    wasm_module_inst_t mi = wasm_runtime_get_module_inst(exec_env);
+    struct module_exec_resrc* resrc = wasm_runtime_get_custom_data(mi);
+
+    if (env_offs != CALL_ENV_OFFS)
+        return 0; // raise wasm exception?
+
+    return enif_make_badarg(resrc->call_env);
 }
 
 
@@ -116,8 +126,8 @@ static NativeSymbol native_symbols[] = {
     EXPORT_WASM_API_WITH_SIG(enif_printf_F, "($F)i"),
 
     EXPORT_WASM_API_WITH_SIG(enif_wasm_get_int32, "(iIi)i"),
-    EXPORT_WASM_API_WITH_SIG(enif_wasm_make_int32, "(ii)I")
-
+    EXPORT_WASM_API_WITH_SIG(enif_wasm_make_int32, "(ii)I"),
+    EXPORT_WASM_API_WITH_SIG(enif_wasm_make_badarg, "(i)I")
 };
 
 
@@ -452,9 +462,17 @@ ERL_NIF_TERM call(ErlNifEnv* env,
 }
 
 
-static ERL_NIF_TERM term_from_wasm(int64_t wasm_term)
+static int64_t term_to_wasm(ErlNifEnv* env, ERL_NIF_TERM term)
 {
-    if ((wasm_term & 3) == 3) {
+    if ((term & 3) == 3) {
+        return (int64_t)term;
+    }
+    assert(!"boxed and list terms NYI");
+}
+
+static ERL_NIF_TERM term_from_wasm(ErlNifEnv* env, int64_t wasm_term)
+{
+    if ((wasm_term & 3) == 3 || enif_is_exception(env, wasm_term)) {
         return (ERL_NIF_TERM)wasm_term;
     }
     assert(!"boxed and list terms NYI");
@@ -507,16 +525,19 @@ static ERL_NIF_TERM call_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
         if (arg_types[i] != WASM_I64)
             return raise_exception(env, "Wasm NIF incorrect ERL_NIF_TERM type");
 
-        args[i].of.i64 = head;
+        args[i].of.i64 = term_to_wasm(env, head);
     }
     if (i != n_args)
         return raise_exception(env, "Wasm NIF too few arguments in list");
 
+    resrc->call_env = env;
     if (!tester_call_func(resrc->exec_env, func, n_args, args, n_ret, &result,
                           &error)) {
+        resrc->call_env = NULL;
         return raise_exception(env, error);
     }
-    return term_from_wasm(result.of.i64);
+    resrc->call_env = NULL;
+    return term_from_wasm(env, result.of.i64);
 }
 
 

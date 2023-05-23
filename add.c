@@ -76,10 +76,9 @@ ERL_NIF_TERM my_nif(ErlNifEnv env, ERL_NIF_TERM arg1, ERL_NIF_TERM arg2)
   int32_t a1 = -666;
   int32_t a2 = -777;
 
-  if (!enif_wasm_get_int32(env, arg1, &a1))
-      return -888;
-  if (!enif_wasm_get_int32(env, arg2, &a2))
-      return -999;
+  if (!enif_wasm_get_int32(env, arg1, &a1) ||
+      !enif_wasm_get_int32(env, arg2, &a2))
+      return enif_wasm_make_badarg(env);
 
   return enif_wasm_make_int32(env, a1+a2);
 }
