@@ -63,19 +63,61 @@ static int enif_printf_F(wasm_exec_env_t exec_env, const char* fmt, double arg1)
   return enif_fprintf(stderr, fmt, arg1);
 }
 
-static int32_t wasm_enif_get_int32(wasm_exec_env_t exec_env, uintptr_t env,
-                                   uintptr_t term, int32_t* ip)
+ErlNifResourceType* the_module_exec_rt;
+
+struct module_exec_resrc
 {
-    return enif_get_int((ErlNifEnv*)env, (ERL_NIF_TERM)term, ip);
+    wasm_module_inst_t module_inst;
+    wasm_exec_env_t exec_env;
+    ErlNifPid proc;
+    ErlNifEnv* call_env;
+};
+
+#define CALL_ENV_OFFS 1
+
+static int32_t enif_wasm_get_int32(wasm_exec_env_t exec_env,
+                                   uint32_t env_offs,
+                                   uintptr_t term,
+                                   uint32_t int_offs)
+{
+    wasm_module_inst_t mi = wasm_runtime_get_module_inst(exec_env);
+    int32_t* int_ptr;
+    struct module_exec_resrc* resrc = wasm_runtime_get_custom_data(mi);
+
+    if (env_offs != CALL_ENV_OFFS) {
+        // raise exception?
+        return 0;
+    }
+
+    if (!wasm_runtime_validate_app_addr(mi, int_offs, sizeof(int32_t))) {
+        // raise exception?
+        return 0;
+    }
+    int_ptr = wasm_runtime_addr_app_to_native(mi, int_offs);
+
+    return enif_get_int(resrc->call_env, (ERL_NIF_TERM)term, int_ptr);
 }
+
+static uintptr_t enif_wasm_make_int32(wasm_exec_env_t exec_env,
+                                    uint32_t env_offs,
+                                    int32_t value)
+{
+    wasm_module_inst_t mi = wasm_runtime_get_module_inst(exec_env);
+    struct module_exec_resrc* resrc = wasm_runtime_get_custom_data(mi);
+
+    return enif_make_int(resrc->call_env, value);
+}
+
 
 /* the native functions that will be exported to WASM app */
 static NativeSymbol native_symbols[] = {
-  EXPORT_WASM_API_WITH_SIG(enif_printf_I, "($i)i"),
-  EXPORT_WASM_API_WITH_SIG(enif_printf_L, "($I)I"),
-  EXPORT_WASM_API_WITH_SIG(enif_printf_F, "($F)i"),
+    EXPORT_WASM_API_WITH_SIG(enif_printf_I, "($i)i"),
+    EXPORT_WASM_API_WITH_SIG(enif_printf_L, "($I)I"),
+    EXPORT_WASM_API_WITH_SIG(enif_printf_F, "($F)i"),
 
-    EXPORT_WASM_API_WITH_SIG(wasm_enif_get_int32, "(rr*)i")
+    EXPORT_WASM_API_WITH_SIG(enif_wasm_get_int32, "(iIi)i"),
+    EXPORT_WASM_API_WITH_SIG(enif_wasm_make_int32, "(ii)I")
+
 };
 
 
@@ -260,15 +302,6 @@ static ErlNifTSDKey the_exec_env_tsd_key;
 
 static const uint32_t stack_size = 8092, heap_size = 8092;
 
-ErlNifResourceType* the_module_exec_rt;
-
-struct module_exec_resrc
-{
-    wasm_module_inst_t module_inst;
-    wasm_exec_env_t exec_env;
-    ErlNifPid proc;
-};
-
 static void module_exec_destructor(ErlNifEnv* caller_env, void* obj)
 {
     struct module_exec_resrc* resrc = (struct module_exec_resrc*) obj;
@@ -321,39 +354,67 @@ static wasm_exec_env_t get_exec_env(void)
     return ee;
 }
 
+enum { N_ARGS_MAX = 10 };
+
+static int get_func_info(ErlNifEnv* env,
+                         wasm_module_inst_t module_inst,
+                         ERL_NIF_TERM func_atom,
+                         wasm_function_inst_t* func_p,
+                         uint32_t* n_args_p,
+                         wasm_valkind_t arg_types[N_ARGS_MAX],
+                         uint32_t* n_ret_p,
+                         wasm_valkind_t* ret_type_p,
+                         ERL_NIF_TERM* err_ret)
+{
+    char func_name[20];
+    wasm_function_inst_t* func;
+
+    if (!enif_get_atom(env, func_atom, func_name, sizeof(func_name), ERL_NIF_LATIN1))
+        return enif_make_badarg(env);
+
+    func = wasm_runtime_lookup_function(module_inst, func_name, NULL);
+    if (!func) {
+        *err_ret = raise_exception(env, "Function undefined");
+        return 0;
+    }
+
+    *n_args_p = wasm_func_get_param_count(func, module_inst);
+    if (*n_args_p > N_ARGS_MAX) {
+        *err_ret = raise_exception(env, "Function arity notsup");
+        return 0;
+    }
+    wasm_func_get_param_types(func, module_inst, arg_types);
+
+    *n_ret_p = wasm_func_get_result_count(func, module_inst);
+    if (*n_ret_p > 1) {
+        *err_ret = raise_exception(env, "Function multiple return notsup");
+        return 0;
+    }
+    if (ret_type_p)
+        wasm_func_get_result_types(func, module_inst, ret_type_p);
+
+    *func_p = func;
+    return 1;
+}
+
 ERL_NIF_TERM call(ErlNifEnv* env,
                   wasm_module_inst_t module_inst,
                   wasm_exec_env_t exec_env,
                   ERL_NIF_TERM func_atom,
                   ERL_NIF_TERM arg_list)
 {
-    char func_name[20];
     uint32_t n_args, n_ret;
-    enum { N_ARGS_MAX = 10 };
     wasm_val_t args[N_ARGS_MAX];
     wasm_val_t result;
     wasm_valkind_t arg_types[N_ARGS_MAX];
     wasm_function_inst_t func;
-    ERL_NIF_TERM head, tail;
+    ERL_NIF_TERM head, tail, err_ret;
     const char* error;
     uint32_t i;
 
-    if (!enif_get_atom(env, func_atom, func_name, sizeof(func_name), ERL_NIF_LATIN1))
-        return enif_make_badarg(env);
-
-    func = wasm_runtime_lookup_function(module_inst, func_name, NULL);
-    if (!func)
-        return raise_exception(env, "Function undefined");
-
-    n_args = wasm_func_get_param_count(func, module_inst);
-    if (n_args > N_ARGS_MAX)
-        return raise_exception(env, "Function arity notsup");
-
-    n_ret = wasm_func_get_result_count(func, module_inst);
-    if (n_ret > 1)
-        return raise_exception(env, "Function multiple return notsup");
-
-    wasm_func_get_param_types(func, module_inst, arg_types);
+    if (!get_func_info(env, module_inst, func_atom, &func, &n_args, arg_types,
+                       &n_ret, NULL, &err_ret))
+        return err_ret;
 
     i = 0;
     for (head = arg_list; !enif_is_empty_list(env, head); head = tail, i++) {
@@ -390,16 +451,25 @@ ERL_NIF_TERM call(ErlNifEnv* env,
     return enif_make_badarg(env);
 }
 
-static ERL_NIF_TERM apply_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    wasm_exec_env_t exec_env = get_exec_env();
-    wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
 
-    return call(env, module_inst, exec_env, argv[0], argv[1]);
+static ERL_NIF_TERM term_from_wasm(int64_t wasm_term)
+{
+    if ((wasm_term & 3) == 3) {
+        return (ERL_NIF_TERM)wasm_term;
+    }
+    assert(!"boxed and list terms NYI");
 }
 
 static ERL_NIF_TERM call_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
+    uint32_t n_args, n_ret;
+    wasm_val_t args[N_ARGS_MAX];
+    wasm_val_t result;
+    wasm_valkind_t arg_types[N_ARGS_MAX];
+    wasm_function_inst_t func;
+    ERL_NIF_TERM head, tail, err_ret;
+    const char* error;
+    uint32_t i;
     struct module_exec_resrc* resrc;
     ErlNifPid self;
 
@@ -410,7 +480,43 @@ static ERL_NIF_TERM call_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
     if (enif_compare_pids(&self, &resrc->proc) != 0)
         return raise_exception(env, "called by wrong process");
 
-    return call(env, resrc->module_inst, resrc->exec_env, argv[1], argv[2]);
+    if (!get_func_info(env, resrc->module_inst, argv[1], &func,
+                       &n_args, arg_types,
+                       &n_ret, &result.kind, &err_ret))
+        return err_ret;
+
+    if (n_ret != 1 || result.kind != WASM_I64)
+        return raise_exception(env, "Wasm NIF incorrect return type");
+
+    if (n_args < 1)
+        return raise_exception(env, "Wasm NIF argument 1 missing");
+
+    if (arg_types[0] != WASM_I32)
+        return raise_exception(env, "Wasm NIF argument 1 incorrect type");
+
+    args[0].kind = WASM_I32;
+    args[0].of.i32 = CALL_ENV_OFFS;
+
+    i = 1;
+    for (head = argv[2]; !enif_is_empty_list(env, head); head = tail, i++) {
+        int ok;
+        if (i >= n_args || !enif_get_list_cell(env, head, &head, &tail))
+            return raise_exception(env, "Wasm NIF too many arguments in list");
+
+        args[i].kind = arg_types[i];
+        if (arg_types[i] != WASM_I64)
+            return raise_exception(env, "Wasm NIF incorrect ERL_NIF_TERM type");
+
+        args[i].of.i64 = head;
+    }
+    if (i != n_args)
+        return raise_exception(env, "Wasm NIF too few arguments in list");
+
+    if (!tester_call_func(resrc->exec_env, func, n_args, args, n_ret, &result,
+                          &error)) {
+        return raise_exception(env, error);
+    }
+    return term_from_wasm(result.of.i64);
 }
 
 
@@ -518,6 +624,8 @@ static ERL_NIF_TERM new_instance_nif(ErlNifEnv* env, int argc, const ERL_NIF_TER
     resrc->exec_env = ee;
     enif_self(env, &resrc->proc);
 
+    wasm_runtime_set_custom_data(mi, resrc);
+
     ret = enif_make_resource(env, resrc);
     enif_release_resource(resrc);
     return ret;
@@ -533,11 +641,9 @@ static ERL_NIF_TERM malloc_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv
     return enif_make_uint64(env, (uint64_t)malloc(size));
 }
 
-
 static ErlNifFunc nif_funcs[] =
 {
     {"hello", 0, hello_nif},
-    {"apply", 2, apply_nif},
     {"print_func", 1, print_func_nif},
     {"arg_binary_alloc", 1, arg_binary_alloc_nif},
     {"arg_binary_free", 1, arg_binary_free_nif},

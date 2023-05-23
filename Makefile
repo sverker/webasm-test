@@ -14,5 +14,5 @@ tester_nif.o: tester_nif.c
 tester_nif.beam: tester_nif.erl
 	$(ERL_ROOT)/bin/erlc tester_nif.erl
 
-add.wasm: add.c
+add.wasm: add.c erl_nif_wasm.h
 	clang --target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -Wl,--allow-undefined add.c -o $@

@@ -1,9 +1,8 @@
 // add.c
 #include <stdint.h>
 
-int32_t enif_printf_I(const char* fmt, int32_t arg1);
-int64_t enif_printf_L(const char* fmt, int64_t arg1);
-int32_t enif_printf_F(const char* fmt, double arg1);
+#include "erl_nif_wasm.h"
+
 
 static int32_t global_static = 100;
 static int32_t global_extern = 200;
@@ -69,4 +68,18 @@ char* buffy(char* buf, int32_t size)
 void segv(void)
 {
   *(int*)17 = 42;
+}
+
+
+ERL_NIF_TERM my_nif(ErlNifEnv env, ERL_NIF_TERM arg1, ERL_NIF_TERM arg2)
+{
+  int32_t a1 = -666;
+  int32_t a2 = -777;
+
+  if (!enif_wasm_get_int32(env, arg1, &a1))
+      return -888;
+  if (!enif_wasm_get_int32(env, arg2, &a2))
+      return -999;
+
+  return enif_wasm_make_int32(env, a1+a2);
 }
