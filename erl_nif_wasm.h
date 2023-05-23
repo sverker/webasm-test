@@ -8,3 +8,7 @@ typedef uintptr_t ErlNifEnv;
 int32_t enif_wasm_get_int32(ErlNifEnv, ERL_NIF_TERM, int32_t*);
 ERL_NIF_TERM enif_wasm_make_int32(ErlNifEnv, int32_t);
 ERL_NIF_TERM enif_wasm_make_badarg(ErlNifEnv);
+int32_t enif_wasm_get_list_cell(ErlNifEnv, ERL_NIF_TERM list,
+                                ERL_NIF_TERM* head, ERL_NIF_TERM* tail);
+int32_t enif_wasm_is_empty_list(ErlNifEnv, ERL_NIF_TERM term);
+

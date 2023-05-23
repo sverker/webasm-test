@@ -82,3 +82,20 @@ ERL_NIF_TERM my_nif(ErlNifEnv env, ERL_NIF_TERM arg1, ERL_NIF_TERM arg2)
 
   return enif_wasm_make_int32(env, a1+a2);
 }
+
+ERL_NIF_TERM add_list(ErlNifEnv env, ERL_NIF_TERM list)
+{
+  ERL_NIF_TERM head, tail;
+  int32_t value, sum = 0;
+
+  for (head = list; !enif_wasm_is_empty_list(env, head); head = tail) {
+    if (!enif_wasm_get_list_cell(env, head, &head, &tail))
+      return enif_wasm_make_badarg(env);
+
+    if (!enif_wasm_get_int32(env, head, &value))
+      return enif_wasm_make_badarg(env);
+
+    sum += value;
+  }
+  return enif_wasm_make_int32(env, sum);
+}
