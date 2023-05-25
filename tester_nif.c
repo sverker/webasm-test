@@ -64,6 +64,7 @@ static int enif_printf_F(wasm_exec_env_t exec_env, const char* fmt, double arg1)
 
 static ERL_NIF_TERM atom_ok;
 static ERL_NIF_TERM atom_void;
+static ERL_NIF_TERM atom_wasm_error;
 static ErlNifResourceType* the_module_exec_rt;
 
 #define DEFAULT_N_TERMS 16
@@ -212,7 +213,7 @@ static ERL_NIF_TERM_wasm enif_wasm_make_int32(wasm_exec_env_t exec_env,
     struct term_env* tenv;
 
     if (!term_env_from_wasm(exec_env, env_w, &tenv))
-        return 0; // raise wasm exception?
+        return atom_wasm_error;
 
     return enif_make_int(tenv->env, value);
 }
@@ -223,7 +224,7 @@ static ERL_NIF_TERM_wasm enif_wasm_make_badarg(wasm_exec_env_t exec_env,
     struct term_env* tenv;
 
     if (!term_env_from_wasm(exec_env, env_w, &tenv))
-        return 0; // raise wasm exception?
+        return atom_wasm_error;
 
     return enif_make_badarg(tenv->env);
 }
@@ -400,6 +401,7 @@ static int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
 {
     atom_ok   = enif_make_atom(env, "ok");
     atom_void = enif_make_atom(env, "void");
+    atom_wasm_error = enif_make_atom(env, "wasm_error__should_not_leak_out");
 
     the_module_exec_rt = enif_open_resource_type(env, NULL, "module_exec",
                                                  module_exec_destructor,
