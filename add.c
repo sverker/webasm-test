@@ -13,9 +13,9 @@ void inc_data()
   global_static++;
   global_extern++;
   local_static++;
-  enif_printf_I("global_static = %d\n", global_static);
-  enif_printf_I("global_extern = %d\n", global_extern);
-  enif_printf_I("local_static = %d\n", local_static);
+  enif_printf_I("\nglobal_static = %d", global_static);
+  enif_printf_I("\nglobal_extern = %d", global_extern);
+  enif_printf_I("\nlocal_static = %d\n", local_static);
 }
 
 int32_t add (int32_t first, int32_t second)

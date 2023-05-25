@@ -47,8 +47,6 @@ static char* read_wasm_binary_to_buffer(const char* wasm_file,
   return buf;
 }
 
-int enif_fprintf(FILE* stream, const char* fmt, ...);
-
 static int enif_printf_I(wasm_exec_env_t exec_env, const char* fmt, int arg1)
 {
   return enif_fprintf(stderr, fmt, arg1);
@@ -66,7 +64,6 @@ static int enif_printf_F(wasm_exec_env_t exec_env, const char* fmt, double arg1)
 
 static ERL_NIF_TERM atom_ok;
 static ERL_NIF_TERM atom_void;
-static ERL_NIF_TERM atom_wasm_error;
 static ErlNifResourceType* the_module_exec_rt;
 
 #define DEFAULT_N_TERMS 16
@@ -400,7 +397,6 @@ static int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
 {
     atom_ok   = enif_make_atom(env, "ok");
     atom_void = enif_make_atom(env, "void");
-    atom_wasm_error = enif_make_atom(env, "wasm_error");
 
     the_module_exec_rt = enif_open_resource_type(env, NULL, "module_exec",
                                                  module_exec_destructor,
