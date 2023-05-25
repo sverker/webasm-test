@@ -68,6 +68,9 @@ static ErlNifResourceType* the_module_exec_rt;
 
 #define DEFAULT_N_TERMS 16
 
+typedef uint64_t ERL_NIF_TERM_wasm;  // ERL_NIF_TERM in wasm land
+typedef uint32_t ErlNifEnv_wasm;   // ErlNifEnv in wasm land
+
 struct term_env
 {
     ErlNifEnv* env;
@@ -106,14 +109,14 @@ static void clear_term_env(struct term_env* tenv)
 #define CALL_ENV_OFFS 1
 
 static bool term_env_from_wasm(wasm_exec_env_t exec_env,
-                               uint32_t env_offs,
+                               ErlNifEnv_wasm env_w,
                                struct term_env** tenv_p)
 {
     wasm_module_inst_t mi = wasm_runtime_get_module_inst(exec_env);
     struct module_exec_resrc* resrc = wasm_runtime_get_custom_data(mi);
     struct term_env* tenv;
 
-    if (env_offs != CALL_ENV_OFFS) {
+    if (env_w != CALL_ENV_OFFS) {
         if (!wasm_runtime_get_exception(tenv->mi)) {
             wasm_runtime_set_exception(tenv->mi, "Invalid ErlNifEnv argument");
         }
@@ -126,7 +129,7 @@ static bool term_env_from_wasm(wasm_exec_env_t exec_env,
     return true;
 }
 
-static uint64_t term_to_wasm(struct term_env* tenv, ERL_NIF_TERM term)
+static ERL_NIF_TERM_wasm term_to_wasm(struct term_env *tenv, ERL_NIF_TERM term)
 {
     unsigned ix;
 
@@ -155,16 +158,17 @@ done:
     return ix << 2;
 }
 
-static bool term_from_wasm(struct term_env* tenv, uint64_t wasm_term,
+static bool term_from_wasm(struct term_env *tenv,
+                           ERL_NIF_TERM_wasm term_w,
                            ERL_NIF_TERM* term_p)
 {
     unsigned ix;
 
-    if ((wasm_term & 3) == 3 || enif_is_exception(tenv->env, wasm_term)) {
-        *term_p = (ERL_NIF_TERM)wasm_term;
+    if ((term_w & 3) == 3 || enif_is_exception(tenv->env, term_w)) {
+        *term_p = (ERL_NIF_TERM) term_w;
         return true;
     }
-    ix = wasm_term >> 2;
+    ix = term_w >> 2;
     if (ix < tenv->n_used_terms) {
         *term_p = tenv->terms[ix];
         return true;
@@ -186,7 +190,7 @@ static bool ptr_from_wasm(struct term_env* tenv, uint32_t ptr_offs,
 }
 
 static int32_t enif_wasm_get_int32(wasm_exec_env_t exec_env,
-                                   uint32_t env_offs,
+                                   ErlNifEnv_wasm env_w,
                                    uintptr_t term,
                                    uint32_t int_offs)
 {
@@ -194,31 +198,31 @@ static int32_t enif_wasm_get_int32(wasm_exec_env_t exec_env,
     struct term_env* tenv;
     int32_t* int_ptr;
 
-    if (!term_env_from_wasm(exec_env, env_offs, &tenv)
+    if (!term_env_from_wasm(exec_env, env_w, &tenv)
         || !ptr_from_wasm(tenv, int_offs, sizeof(int32_t), (void**)&int_ptr))
         return 0; // raise wasm exception?
 
     return enif_get_int(tenv->env, (ERL_NIF_TERM)term, int_ptr);
 }
 
-static uintptr_t enif_wasm_make_int32(wasm_exec_env_t exec_env,
-                                    uint32_t env_offs,
-                                    int32_t value)
+static ERL_NIF_TERM_wasm enif_wasm_make_int32(wasm_exec_env_t exec_env,
+                                              ErlNifEnv_wasm env_w,
+                                              int32_t value)
 {
     struct term_env* tenv;
 
-    if (!term_env_from_wasm(exec_env, env_offs, &tenv))
+    if (!term_env_from_wasm(exec_env, env_w, &tenv))
         return 0; // raise wasm exception?
 
     return enif_make_int(tenv->env, value);
 }
 
-static uintptr_t enif_wasm_make_badarg(wasm_exec_env_t exec_env,
-                                       uint32_t env_offs)
+static ERL_NIF_TERM_wasm enif_wasm_make_badarg(wasm_exec_env_t exec_env,
+                                               ErlNifEnv_wasm env_w)
 {
     struct term_env* tenv;
 
-    if (!term_env_from_wasm(exec_env, env_offs, &tenv))
+    if (!term_env_from_wasm(exec_env, env_w, &tenv))
         return 0; // raise wasm exception?
 
     return enif_make_badarg(tenv->env);
@@ -226,8 +230,8 @@ static uintptr_t enif_wasm_make_badarg(wasm_exec_env_t exec_env,
 
 
 static int32_t enif_wasm_get_list_cell(wasm_exec_env_t exec_env,
-                                       uint32_t env_offs,
-                                       ERL_NIF_TERM list,
+                                       ErlNifEnv_wasm env_w,
+                                       ERL_NIF_TERM_wasm list_w,
                                        uint32_t head_offs,
                                        uint32_t tail_offs)
 {
@@ -235,15 +239,14 @@ static int32_t enif_wasm_get_list_cell(wasm_exec_env_t exec_env,
     ERL_NIF_TERM list_term, head_term, tail_term;
     ERL_NIF_TERM *head_ptr, *tail_ptr;
 
-    if (!term_env_from_wasm(exec_env, env_offs, &tenv)
+    if (!term_env_from_wasm(exec_env, env_w, &tenv)
         || !ptr_from_wasm(tenv, head_offs, sizeof(ERL_NIF_TERM), (void**)&head_ptr)
         || !ptr_from_wasm(tenv, tail_offs, sizeof(ERL_NIF_TERM), (void**)&tail_ptr)
-        || !term_from_wasm(tenv, list, &list_term)) {
+        || !term_from_wasm(tenv, list_w, &list_term)) {
         return 0;
     }
 
-    if (
-        !enif_get_list_cell(tenv->env, list_term, &head_term, &tail_term)) {
+    if (!enif_get_list_cell(tenv->env, list_term, &head_term, &tail_term)) {
         return 0;
     }
     *head_ptr = term_to_wasm(tenv, head_term);
@@ -252,13 +255,13 @@ static int32_t enif_wasm_get_list_cell(wasm_exec_env_t exec_env,
 }
 
 static int32_t enif_wasm_is_empty_list(wasm_exec_env_t exec_env,
-                                       uint32_t env_offs,
-                                       ERL_NIF_TERM term_offs)
+                                       ErlNifEnv_wasm env_w,
+                                       ERL_NIF_TERM_wasm term_w)
 {
     struct term_env* tenv;
     ERL_NIF_TERM term;
-    if (!term_env_from_wasm(exec_env, env_offs, &tenv)
-        || !term_from_wasm(tenv, term_offs, &term))
+    if (!term_env_from_wasm(exec_env, env_w, &tenv)
+        || !term_from_wasm(tenv, term_w, &term))
         return 0;
 
     return enif_is_empty_list(tenv->env, term);
