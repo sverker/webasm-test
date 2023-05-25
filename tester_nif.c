@@ -666,16 +666,22 @@ static ERL_NIF_TERM new_instance_nif(ErlNifEnv* env, int argc, const ERL_NIF_TER
     struct module_exec_resrc* resrc;
     ERL_NIF_TERM ret;
     wasm_exec_env_t ee;
-    wasm_module_inst_t mi =
-        wasm_runtime_instantiate(the_module, stack_size, heap_size,
-                                 error_buf, sizeof(error_buf));
-    if (!mi)
-        raise_exception(env, error_buf);
+    wasm_module_inst_t mi;
+    bool ok = wasm_runtime_init_thread_env();
+    assert(ok); (void)ok;
+
+    mi = wasm_runtime_instantiate(the_module, stack_size, heap_size,
+                                  error_buf, sizeof(error_buf));
+    if (!mi) {
+        ret = raise_exception(env, error_buf);
+        goto done;
+    }
 
     ee = wasm_runtime_create_exec_env(mi, stack_size);
     if (!ee) {
         wasm_runtime_deinstantiate(mi);
-        raise_exception(env, "wasm_runtime_create_exec_env FAILED");
+        ret = raise_exception(env, "wasm_runtime_create_exec_env FAILED");
+        goto done;
     }
 
     resrc = enif_alloc_resource(the_module_exec_rt,
@@ -691,6 +697,9 @@ static ERL_NIF_TERM new_instance_nif(ErlNifEnv* env, int argc, const ERL_NIF_TER
 
     ret = enif_make_resource(env, resrc);
     enif_release_resource(resrc);
+
+done:
+    wasm_runtime_destroy_thread_env();
     return ret;
 }
 
