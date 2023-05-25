@@ -268,6 +268,70 @@ static int32_t enif_wasm_is_empty_list(wasm_exec_env_t exec_env,
     return enif_is_empty_list(tenv->env, term);
 }
 
+static int32_t enif_wasm_get_binary_size(wasm_exec_env_t exec_env,
+                                         ErlNifEnv_wasm env_w,
+                                         ERL_NIF_TERM_wasm binary_w,
+                                         uint32_t size_offs)
+{
+    struct term_env* tenv;
+    ERL_NIF_TERM binary;
+    ErlNifBinary bin;
+    uint32_t* size_p;
+
+    if (!term_env_from_wasm(exec_env, env_w, &tenv)
+        || !term_from_wasm(tenv, binary_w, &binary)
+        || !ptr_from_wasm(tenv, size_offs, 4, (void**)&size_p)
+        || !enif_inspect_binary(tenv->env, binary, &bin)
+        || bin.size > UINT32_MAX)
+        return 0;
+
+    *size_p = bin.size;
+    return 1;
+}
+
+static int32_t enif_wasm_get_binary_bytes(wasm_exec_env_t exec_env,
+                                          ErlNifEnv_wasm env_w,
+                                          ERL_NIF_TERM_wasm binary_w,
+                                          uint32_t offset,
+                                          uint32_t nbytes,
+                                          uint32_t dest_offs)
+{
+    struct term_env* tenv;
+    ERL_NIF_TERM binary;
+    ErlNifBinary bin;
+    unsigned char* dest_p;
+
+    if (!term_env_from_wasm(exec_env, env_w, &tenv)
+        || !term_from_wasm(tenv, binary_w, &binary)
+        || !ptr_from_wasm(tenv, dest_offs, nbytes, (void**)&dest_p)
+        || !enif_inspect_binary(tenv->env, binary, &bin)
+        || offset + nbytes > bin.size)
+        return 0;
+
+    memcpy(dest_p, bin.data, nbytes);
+    return 1;
+}
+
+static ERL_NIF_TERM_wasm enif_wasm_make_binary(wasm_exec_env_t exec_env,
+                                               ErlNifEnv_wasm env_w,
+                                               uint32_t src_offs,
+                                               uint32_t nbytes)
+{
+    struct term_env* tenv;
+    const unsigned char* src_p;
+    unsigned char* dst_p;
+    ERL_NIF_TERM binary;
+
+    if (!term_env_from_wasm(exec_env, env_w, &tenv)
+        || !ptr_from_wasm(tenv, src_offs, nbytes, (void**)&src_p))
+        return atom_wasm_error;
+
+    dst_p = enif_make_new_binary(tenv->env, nbytes, &binary);
+    memcpy(dst_p, src_p, nbytes);
+    return term_to_wasm(tenv, binary);
+}
+
+
 /* the native functions that will be exported to WASM app */
 static NativeSymbol native_symbols[] = {
     EXPORT_WASM_API_WITH_SIG(enif_printf_I, "($i)i"),
@@ -278,7 +342,10 @@ static NativeSymbol native_symbols[] = {
     EXPORT_WASM_API_WITH_SIG(enif_wasm_make_int32, "(ii)I"),
     EXPORT_WASM_API_WITH_SIG(enif_wasm_make_badarg, "(i)I"),
     EXPORT_WASM_API_WITH_SIG(enif_wasm_get_list_cell, "(iIii)i"),
-    EXPORT_WASM_API_WITH_SIG(enif_wasm_is_empty_list, "(iI)i")
+    EXPORT_WASM_API_WITH_SIG(enif_wasm_is_empty_list, "(iI)i"),
+    EXPORT_WASM_API_WITH_SIG(enif_wasm_get_binary_size, "(iIi)i"),
+    EXPORT_WASM_API_WITH_SIG(enif_wasm_get_binary_bytes, "(iIiii)i"),
+    EXPORT_WASM_API_WITH_SIG(enif_wasm_make_binary, "(iii)I"),
 };
 
 

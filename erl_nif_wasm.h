@@ -11,4 +11,11 @@ ERL_NIF_TERM enif_wasm_make_badarg(ErlNifEnv);
 int32_t enif_wasm_get_list_cell(ErlNifEnv, ERL_NIF_TERM list,
                                 ERL_NIF_TERM* head, ERL_NIF_TERM* tail);
 int32_t enif_wasm_is_empty_list(ErlNifEnv, ERL_NIF_TERM term);
+int32_t enif_wasm_get_binary_size(ErlNifEnv, ERL_NIF_TERM binary,
+                                  uint32_t* size);
+int32_t enif_wasm_get_binary_bytes(ErlNifEnv, ERL_NIF_TERM binary,
+                                   uint32_t offset, uint32_t nbytes,
+                                   unsigned char* dest);
+ERL_NIF_TERM enif_wasm_make_binary(ErlNifEnv, const unsigned char* src,
+                                   uint32_t nbytes);
 

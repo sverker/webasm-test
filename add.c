@@ -57,4 +57,23 @@ ERL_NIF_TERM add_list_terms(ErlNifEnv env, ERL_NIF_TERM list)
   return enif_wasm_make_int32(env, sum);
 }
 
+ERL_NIF_TERM binary_reverse(ErlNifEnv env, ERL_NIF_TERM binary)
+{
+    unsigned char buf[100];
+    uint32_t size, i;
+
+    if (!enif_wasm_get_binary_size(env, binary, &size)
+        || size > sizeof(buf))
+        return enif_wasm_make_badarg(env);
+
+    if (!enif_wasm_get_binary_bytes(env, binary, 0, size, buf))
+      return enif_wasm_make_badarg(env);
+
+    for (i = 0; i < size/2; i++) {
+        const unsigned char tmp = buf[i];
+        buf[i] = buf[size-1-i];
+        buf[size-1-i] = tmp;
+    }
+    return enif_wasm_make_binary(env, buf, size);
+}
 
