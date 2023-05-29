@@ -1,4 +1,4 @@
-all: wasm_runtime_nif.so add.wasm wasm_runtime_nif.beam
+all: wasm_runtime_nif.so test.wasm wasm_runtime_nif.beam
 
 WASM_LINK := -L/home/uabseri/src/wasm-micro-runtime/product-mini/platforms/linux/build-thr-mngr -Wl,-rpath=/home/uabseri/src/wasm-micro-runtime/product-mini/platforms/linux/build-thr-mngr -liwasm
 WASM_INCLUDE := -I/home/uabseri/src/wasm-micro-runtime/core/iwasm/include
@@ -14,5 +14,5 @@ wasm_runtime_nif.o: wasm_runtime_nif.c
 wasm_runtime_nif.beam: wasm_runtime_nif.erl
 	$(ERL_ROOT)/bin/erlc wasm_runtime_nif.erl
 
-add.wasm: add.c erl_nif_wasm.h
-	clang --target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -Wl,--allow-undefined add.c -o $@
+test.wasm: test.c erl_nif_wasm.h
+	clang --target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -Wl,--allow-undefined test.c -o $@

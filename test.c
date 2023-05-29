@@ -1,8 +1,12 @@
-// add.c
+// test.c
 #include <stdint.h>
 
 #include "erl_nif_wasm.h"
 
+/*
+ * Functions that do not use the erl_nif_wasm.h interface.
+ * Can be called with wasm_runtime_nif:call_raw/3.
+ */
 
 int32_t inc_static_data()
 {
@@ -27,6 +31,11 @@ double add_F64(double first, double second)
   return first + second;
 }
 
+/*
+ * Functions that use the erl_nif_wasm.h interface
+ * to read and create Erlang terms.
+ * Can be called with wasm_runtime_nif:call/3
+ */
 
 ERL_NIF_TERM add_terms(ErlNifEnv env, ERL_NIF_TERM arg1, ERL_NIF_TERM arg2)
 {

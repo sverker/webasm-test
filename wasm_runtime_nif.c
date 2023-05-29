@@ -406,12 +406,18 @@ static int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
 {
     char *buffer;
     uint32_t size, stack_size = 8092, heap_size = 8092;
+    char name_buf[256];
+
+    if (enif_get_string(env, load_info, name_buf, sizeof(name_buf),
+                        ERL_NIF_LATIN1) <= 0) {
+        return __LINE__;
+    }
 
     atom_ok   = enif_make_atom(env, "ok");
     atom_void = enif_make_atom(env, "void");
     atom_wasm_error = enif_make_atom(env, "wasm_error__should_not_leak_out");
 
-    the_module_exec_rt = enif_open_resource_type(env, NULL, "module_exec",
+    the_module_exec_rt = enif_open_resource_type(env, NULL, "wasm_module_exec",
                                                  module_exec_destructor,
                                                  ERL_NIF_RT_CREATE, NULL);
     if (!the_module_exec_rt)
@@ -442,7 +448,7 @@ static int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
     }
 
     /* read WASM file into a memory buffer */
-    buffer = read_wasm_binary_to_buffer("./add.wasm", &size);
+    buffer = read_wasm_binary_to_buffer(name_buf, &size);
 
     /* parse the WASM file from buffer and create a WASM module */
     the_module = wasm_runtime_load(buffer, size, error_buf, sizeof(error_buf));

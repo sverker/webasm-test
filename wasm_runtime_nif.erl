@@ -1,15 +1,16 @@
 -module(wasm_runtime_nif).
 
--export([print_func/2, new/0, new/1, call/3, call_raw/3]).
+-export([init/0, init/1, print_func/2, new/0, new/1, call/3, call_raw/3]).
 
 -nifs([print_func/2, new_instance/0, call/3, call_raw/3]).
-
--on_load(init/0).
 
 -define(PROCESS_BOUND, 1).
 
 init() ->
-      erlang:load_nif("./wasm_runtime_nif", 0).
+    init("./test.wasm").
+
+init(WasmFile) ->
+    erlang:load_nif("./wasm_runtime_nif", WasmFile).
 
 print_func(_Inst, _Func) ->
       erlang:nif_error("NIF library not loaded").
