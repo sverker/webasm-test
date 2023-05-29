@@ -1,7 +1,7 @@
 # wasm_runtime_nif
 
 An Erlang module with a NIF implementation to load and call web-assembly code
-from within an Erlang runtime VM.
+to run within the Erlang runtime VM.
 
 
 ## Prerequisite
@@ -29,7 +29,7 @@ export ERL_DIR=...
 
 ## Build this repo
 
-First set WASM_DIR and ERL_DIR like above.
+First set `WASM_DIR` and `ERL_DIR` like above.
 Then just run make in the root of this repo.
 ```sh
 make
@@ -46,16 +46,16 @@ then create an instance of the wasm module
 2> M = wasm_runtime_nif:new().
 ```
 
-`call_raw/3` is used to call functions that use plain integer and float argument
-and return types:
+Function `call_raw/3` is used to call functions that use plain integer and float
+types for arguments and return value:
 
 ```erlang
 2> wasm_runtime_nif:call_raw(M, add_I32, [4,7]).
 11
 ```
 
-`call/3` is used to call functions that use the erl_nif_wasm.h interface to read
-and create Erlang terms.
+Function `call/3` is used to call functions that use the `erl_nif_wasm.h`
+interface to read and create Erlang terms.
 ```erlang
 3> wasm_runtime_nif:call(M, add_terms, [4,7]).
 11
@@ -69,8 +69,8 @@ and create Erlang terms.
 ## Multi threading limitations
 
 Only one Erlang process (VM thread) at a time can call functions in a wasm
-module instance. This is either protected by a mutex lock (like above) or by
-binding the module instance to the calling Erlang process: 
+module instance. This is by default enforced by a mutex lock (like above) or by
+binding the module instance to the calling Erlang process:
 
 ```erlang
 5> Mb = wasm_runtime_nif:new([process_bound]).
@@ -92,5 +92,5 @@ now crash the shell to get a new shell process
 
 Different wasm module instancess can be called concurrently, but they will not
 share any data with each other. The only way to run purely multi-threaded wasm
-code is to spawn threads within the wasm code (not tested). 
+code is to spawn threads within the wasm code (not tested).
 
