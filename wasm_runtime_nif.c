@@ -374,45 +374,6 @@ static const char* type_str(enum wasm_valkind_enum type)
 wasm_module_t the_module;
 static char error_buf[128];
 
-static int tester_init()
-{
-  char *buffer;
-  uint32_t size, stack_size = 8092, heap_size = 8092;
-
-
-  /* all the runtime memory allocations are retricted in the global_heap_buf array */
-  static char global_heap_buf[512 * 1024];
-  RuntimeInitArgs init_args;
-  memset(&init_args, 0, sizeof(RuntimeInitArgs));
-
-  /* configure the memory allocator for the runtime */
-  init_args.mem_alloc_type = Alloc_With_Pool;
-  init_args.mem_alloc_option.pool.heap_buf = global_heap_buf;
-  init_args.mem_alloc_option.pool.heap_size = sizeof(global_heap_buf);
-
-  /* configure the native functions being exported to WASM app */
-  init_args.native_module_name = "env";
-  init_args.n_native_symbols = sizeof(native_symbols) / sizeof(NativeSymbol);
-  init_args.native_symbols = native_symbols;
-
-  /* set maximum thread number if needed when multi-thread is enabled,
-     the default value is 4 */
-  init_args.max_thread_num = 4;
-
-  /* initialize runtime environment with user configurations*/
-  if (!wasm_runtime_full_init(&init_args)) {
-    return -1;
-  }
-
-  /* read WASM file into a memory buffer */
-  buffer = read_wasm_binary_to_buffer("./add.wasm", &size);
-
-  /* parse the WASM file from buffer and create a WASM module */
-  the_module = wasm_runtime_load(buffer, size, error_buf, sizeof(error_buf));
-
-  return 0;
-}
-
 static bool call_func(wasm_exec_env_t exec_env,
                       wasm_function_inst_t func,
                       uint32_t n_args, wasm_val_t* args,
@@ -443,6 +404,9 @@ static void module_exec_destructor(ErlNifEnv* caller_env, void* obj)
 
 static int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
 {
+    char *buffer;
+    uint32_t size, stack_size = 8092, heap_size = 8092;
+
     atom_ok   = enif_make_atom(env, "ok");
     atom_void = enif_make_atom(env, "void");
     atom_wasm_error = enif_make_atom(env, "wasm_error__should_not_leak_out");
@@ -453,7 +417,37 @@ static int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
     if (!the_module_exec_rt)
         return __LINE__;
 
-    return tester_init();
+    /* all the runtime memory allocations are retricted in the global_heap_buf array */
+    static char global_heap_buf[512 * 1024];
+    RuntimeInitArgs init_args;
+    memset(&init_args, 0, sizeof(RuntimeInitArgs));
+
+    /* configure the memory allocator for the runtime */
+    init_args.mem_alloc_type = Alloc_With_Pool;
+    init_args.mem_alloc_option.pool.heap_buf = global_heap_buf;
+    init_args.mem_alloc_option.pool.heap_size = sizeof(global_heap_buf);
+
+    /* configure the native functions being exported to WASM app */
+    init_args.native_module_name = "env";
+    init_args.n_native_symbols = sizeof(native_symbols) / sizeof(NativeSymbol);
+    init_args.native_symbols = native_symbols;
+
+    /* set maximum thread number if needed when multi-thread is enabled,
+       the default value is 4 */
+    init_args.max_thread_num = 4;
+
+    /* initialize runtime environment with user configurations*/
+    if (!wasm_runtime_full_init(&init_args)) {
+      return -1;
+    }
+
+    /* read WASM file into a memory buffer */
+    buffer = read_wasm_binary_to_buffer("./add.wasm", &size);
+
+    /* parse the WASM file from buffer and create a WASM module */
+    the_module = wasm_runtime_load(buffer, size, error_buf, sizeof(error_buf));
+
+    return 0;
 }
 static void unload(ErlNifEnv* caller_env, void* priv_data)
 {
@@ -800,5 +794,5 @@ static ErlNifFunc nif_funcs[] =
     {"call_raw", 3, call_raw_nif}
 };
 
-ERL_NIF_INIT(tester_nif,nif_funcs,load,NULL,NULL,unload)
+ERL_NIF_INIT(wasm_runtime_nif,nif_funcs,load,NULL,NULL,unload)
 
