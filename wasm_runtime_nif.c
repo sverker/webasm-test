@@ -453,9 +453,14 @@ static void unload(ErlNifEnv* caller_env, void* priv_data)
 {
 }
 
+static ERL_NIF_TERM make_str(ErlNifEnv* env, const char* str)
+{
+    return enif_make_string(env, str, ERL_NIF_LATIN1);
+}
+
 static ERL_NIF_TERM raise_exception(ErlNifEnv* env, const char* str)
 {
-    return enif_raise_exception(env, enif_make_string(env, str, ERL_NIF_LATIN1));
+    return enif_raise_exception(env, make_str(env, str));
 }
 
 enum { N_ARGS_MAX = 10 };
@@ -506,6 +511,7 @@ static bool try_lock_resrc(ErlNifEnv* env, ERL_NIF_TERM inst_term,
                            ERL_NIF_TERM* error_ret_p)
 {
     struct module_exec_resrc* resrc;
+    const char* except;
 
     *resrc_p = NULL;
     if (!enif_get_resource(env, inst_term, the_module_exec_rt, (void**)&resrc)) {
@@ -523,6 +529,18 @@ static bool try_lock_resrc(ErlNifEnv* env, ERL_NIF_TERM inst_term,
             return false;
         }
     }
+    except = wasm_runtime_get_exception(resrc->module_inst);
+    if (except) {
+        ERL_NIF_TERM tpl =
+            enif_make_tuple2(env,
+                             make_str(env, "Wasm modul already invalidated by"),
+                             make_str(env, except));
+        if (resrc->lock)
+            enif_mutex_unlock(resrc->lock);
+        *error_ret_p = enif_raise_exception(env, tpl);
+        return false;
+    }
+
     *resrc_p = resrc;
     return true;
 }
