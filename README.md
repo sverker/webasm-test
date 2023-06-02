@@ -47,18 +47,40 @@ then create an instance of the wasm module
 ```
 
 Function `call_raw/3` is used to call functions that use plain integer and float
-types for arguments and return value:
-
+types for arguments and return value. For example the `add_I32` function in test.c:
+```c
+int32_t add_I32(int32_t first, int32_t second)
+{
+  return first + second;
+}
+```
+can be called with `call_raw` like this
 ```erlang
 2> wasm_runtime_nif:call_raw(M, add_I32, [4,7]).
 11
 ```
 
 Function `call/3` is used to call functions that use the `erl_nif_wasm.h`
-interface to read and create Erlang terms.
+interface to read and create Erlang terms. For example function `add_terms` in test.c
+```c
+ERL_NIF_TERM add_terms(ErlNifEnv env, ERL_NIF_TERM arg1, ERL_NIF_TERM arg2)
+{
+  int32_t a1, a2;
+
+  if (!enif_wasm_get_int32(env, arg1, &a1) ||
+      !enif_wasm_get_int32(env, arg2, &a2))
+      return enif_wasm_make_badarg(env);
+
+  return enif_wasm_make_int32(env, a1+a2);
+}
+```
+can be called with `call` like this
 ```erlang
 3> wasm_runtime_nif:call(M, add_terms, [4,7]).
 11
+```
+More complex data structures can be passed as Erlang terms using the erl_nif_wasm.h interface:
+```erlang
 4> wasm_runtime_nif:call(M, add_list_terms, [[4,6,3,7,5]]).
 25
 4> wasm_runtime_nif:call(M, binary_reverse, [<<1,2,3,4,5>>]).

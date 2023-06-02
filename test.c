@@ -39,8 +39,7 @@ double add_F64(double first, double second)
 
 ERL_NIF_TERM add_terms(ErlNifEnv env, ERL_NIF_TERM arg1, ERL_NIF_TERM arg2)
 {
-  int32_t a1 = -666;
-  int32_t a2 = -777;
+  int32_t a1, a2;
 
   if (!enif_wasm_get_int32(env, arg1, &a1) ||
       !enif_wasm_get_int32(env, arg2, &a2))
